@@ -1,0 +1,35 @@
+capital:
+  api_key: ""
+  api_secret: ""
+  account_id: ""
+trading:
+  symbol: "BTCUSD"
+  timeframe: "MINUTE_5"
+  poll_interval: 60
+  max_risk_per_trade: 0.01  # 1% риска на сделку
+  account_balance: 100.0
+strategies:
+  smc:
+    ob_volume_multiplier: 1.5
+    rr_ratio: 2.0
+  ict:
+    kill_zones:
+      london: true
+      new_york: true
+sl_tp:
+  atr_period: 14
+  atr_multiplier_sl: 1.5
+  atr_multiplier_tp: 1.0
+  rr_ratio: 2.0
+  sr_window: 20
+early_exit:
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+backtest:
+  start_date: "2025-03-03"
+  end_date: "2025-04-27"
+  spread: 0.00015  # Спред для EURUSD
+  commission: 0.0001  # 0.01% комиссии
+  slippage_volatility: 0.0001  # Волатильность для проскальзывания
+mode: "backtest"  # "live" или "backtest"

@@ -1,0 +1,6 @@
+venv
+data
+config.yaml
+backtest
+*.log
+*.csv
