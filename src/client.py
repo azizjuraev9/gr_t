@@ -26,7 +26,10 @@ class CapitalClient:
                 }
             )
             response.raise_for_status()
-            self.session.headers.update({"CST": response.headers.get("CST")})
+            self.session.headers.update({
+                "CST": response.headers.get("CST"),
+                "X-SECURITY-TOKEN": response.headers.get("X-SECURITY-TOKEN")
+            })
             self.logger.info("Authenticated successfully")
         except Exception as e:
             self.logger.error(f"Authentication failed: {e}")
@@ -36,8 +39,8 @@ class CapitalClient:
     def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> List[Dict]:
         try:
             response = self.session.get(
-                f"{self.base_url}/prices",
-                params={"epic": symbol, "resolution": timeframe, "max": limit}
+                f"{self.base_url}/prices/{symbol}",
+                params={"resolution": timeframe, "max": limit}
             )
             response.raise_for_status()
             return response.json().get("prices", [])
@@ -48,21 +51,31 @@ class CapitalClient:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def place_order(self, symbol: str, direction: str, size: float, price: Optional[float] = None,
                     stop_loss: Optional[float] = None, take_profit: Optional[float] = None) -> Dict:
+        
+        payload = {
+            "epic": symbol,
+            "direction": direction.upper(),
+            "size": round(size,4),            
+            # "orderType": "MARKET",  
+            "type": "STOP",
+            "level": round(price,2),
+            "forceOpen": True,
+            "guaranteedStop": False,           
+            "currencyCode": "USD",
+            "stopLevel": round(stop_loss,2),
+            "profitLevel": round(take_profit,2)
+        }
+
+        response = None
         try:
-            payload = {
-                "epic": symbol,
-                "direction": direction.upper(),
-                "size": size,
-                "price": price,
-                "stopLevel": stop_loss,
-                "profitLevel": take_profit
-            }
-            response = self.session.post(f"{self.base_url}/positions", json=payload)
+            response = self.session.post(f"{self.base_url}/workingorders", json=payload)
             response.raise_for_status()
             self.logger.info(f"Order placed: {payload}")
             return response.json()
         except Exception as e:
             self.logger.error(f"Failed to place order: {e}")
+            self.logger.error(response.content)
+            self.logger.error(payload)
             return {}
 
     def get_account_balance(self) -> float:

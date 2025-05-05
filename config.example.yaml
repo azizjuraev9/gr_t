@@ -26,6 +26,7 @@ early_exit:
   rsi_period: 14
   rsi_overbought: 70
   rsi_oversold: 30
+  min_profit_percent: 0.1
 backtest:
   start_date: "2025-03-03"
   end_date: "2025-04-27"

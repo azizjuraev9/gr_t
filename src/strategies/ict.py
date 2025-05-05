@@ -26,9 +26,9 @@ class ICTStrategy:
         self.logger = logging.getLogger(__name__)
 
     async def execute(self) -> None:
-        if not self._is_kill_zone():
-            self.logger.info("Outside Kill Zone, skipping")
-            return
+        # if not self._is_kill_zone():
+        #     self.logger.info("Outside Kill Zone, skipping")
+        #     return
 
         try:
             # Получение данных в зависимости от режима
@@ -41,7 +41,7 @@ class ICTStrategy:
                 self.logger.warning("No data received")
                 return
 
-            daily_bias = self._get_daily_bias()
+            daily_bias = await self._get_daily_bias()
             ms_break = self._detect_market_structure_break(data)
             judas_swing = self._detect_judas_swing(data)
             ote = self._detect_optimal_trade_entry(data)
@@ -67,11 +67,12 @@ class ICTStrategy:
                 return True
         return False
 
-    def _get_daily_bias(self) -> str:
+    async def _get_daily_bias(self) -> str:
         if self.global_config["mode"] == "backtest":
             daily_data = self.data_feed.get_data(self.symbol, "DAY", 10)
         else:
-            daily_data = asyncio.run(self.data_feed.get_data(self.symbol, "DAY", 10))
+            daily_data = await self.data_feed.get_data(self.symbol, "DAY", 10)
+            
         if daily_data.empty:
             return "neutral"
         return "bullish" if daily_data["close"].iloc[-1] > daily_data["open"].iloc[-1] else "bearish"
@@ -117,16 +118,28 @@ class ICTStrategy:
         direction = "BUY" if ms_break["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, ms_break["price"], direction)
         size = self.risk_manager.calculate_position_size(ms_break["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, ms_break["price"], sl, tp)
 
     async def _trade_judas_swing(self, judas: Dict, data: pd.DataFrame) -> None:
         direction = "BUY" if judas["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, judas["price"], direction)
         size = self.risk_manager.calculate_position_size(judas["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, judas["price"], sl, tp)
 
     async def _trade_optimal_trade_entry(self, ote: Dict, data: pd.DataFrame) -> None:
         direction = "BUY" if ote["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, ote["price"], direction)
         size = self.risk_manager.calculate_position_size(ote["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, ote["price"], sl, tp)

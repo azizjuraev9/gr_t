@@ -56,6 +56,7 @@ class SMCStrategy:
             self.logger.error(f"SMC strategy error: {e}")
 
     def _detect_order_block(self, data: pd.DataFrame) -> Optional[Dict]:
+        data = data.copy()
         data["range"] = data["high"] - data["low"]
         data["is_bullish"] = data["close"] > data["open"]
         last_candle = data.iloc[-1]
@@ -73,7 +74,9 @@ class SMCStrategy:
 
     def _detect_fair_value_gap(self, data: pd.DataFrame) -> Optional[Dict]:
         for i in range(len(data) - 2):
-            c1, c2, c3 = data.iloc[i:i+3]
+            c1 = data.iloc[i]
+            c2 = data.iloc[i+1]
+            c3 = data.iloc[i+2]
             if c1["high"] < c3["low"] and c2["close"] > c2["open"]:
                 return {"price": (c1["high"] + c3["low"]) / 2, "type": "bullish"}
             elif c1["low"] > c3["high"] and c2["close"] < c2["open"]:
@@ -91,6 +94,7 @@ class SMCStrategy:
         return None
 
     def _detect_break_of_structure(self, data: pd.DataFrame) -> Optional[Dict]:
+        data = data.copy()
         data["higher_high"] = data["high"] > data["high"].shift(1)
         data["lower_low"] = data["low"] < data["low"].shift(1)
         last_candle = data.iloc[-1]
@@ -101,6 +105,7 @@ class SMCStrategy:
         return None
 
     def _detect_change_of_character(self, data: pd.DataFrame) -> Optional[Dict]:
+        data = data.copy()
         data["trend"] = data["close"].rolling(20).mean()
         last_candle = data.iloc[-1]
         if last_candle["close"] > data["trend"].iloc[-1] and data["close"].iloc[-2] < data["trend"].iloc[-2]:
@@ -113,28 +118,48 @@ class SMCStrategy:
         direction = "BUY" if ob["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, ob["price"], direction)
         size = self.risk_manager.calculate_position_size(ob["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, ob["price"], sl, tp)
 
     async def _trade_fair_value_gap(self, fvg: Dict, data: pd.DataFrame) -> None:
         direction = "BUY" if fvg["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, fvg["price"], direction)
         size = self.risk_manager.calculate_position_size(fvg["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, fvg["price"], sl, tp)
 
     async def _trade_liquidity_grab(self, liquidity: Dict, data: pd.DataFrame) -> None:
         direction = "BUY" if liquidity["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, liquidity["price"], direction)
         size = self.risk_manager.calculate_position_size(liquidity["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, liquidity["price"], sl, tp)
 
     async def _trade_break_of_structure(self, bos: Dict, data: pd.DataFrame) -> None:
         direction = "BUY" if bos["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, bos["price"], direction)
         size = self.risk_manager.calculate_position_size(bos["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, bos["price"], sl, tp)
 
     async def _trade_change_of_character(self, choch: Dict, data: pd.DataFrame) -> None:
         direction = "BUY" if choch["type"] == "bullish" else "SELL"
         sl, tp = self.sl_tp_calculator.calculate_sl_tp(data, choch["price"], direction)
         size = self.risk_manager.calculate_position_size(choch["price"], sl)
+
+        if size == 0.0:
+            return
+
         await self.order_manager.place_order(self.symbol, direction, size, choch["price"], sl, tp)

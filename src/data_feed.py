@@ -16,11 +16,12 @@ class DataFeed:
 
             df = pd.DataFrame(raw_data)
             df["timestamp"] = pd.to_datetime(df["snapshotTimeUTC"])
-            df["open"] = df["openPrice"]["bid"]
-            df["high"] = df["highPrice"]["bid"]
-            df["low"] = df["lowPrice"]["bid"]
-            df["close"] = df["closePrice"]["bid"]
-            df["volume"] = df.get("volume", 0)
+            df["close"] = df["closePrice"].apply(lambda x: x.get("bid") if isinstance(x, dict) else None)
+            df["open"] = df["openPrice"].apply(lambda x: x.get("bid") if isinstance(x, dict) else None)
+            df["high"] = df["highPrice"].apply(lambda x: x.get("bid") if isinstance(x, dict) else None)
+            df["low"] = df["lowPrice"].apply(lambda x: x.get("bid") if isinstance(x, dict) else None)
+            df["volume"] = df["lastTradedVolume"]
+
             return df[["timestamp", "open", "high", "low", "close", "volume"]]
         except Exception as e:
             self.logger.error(f"Failed to fetch data: {e}")

@@ -27,6 +27,22 @@ class EarlyExit:
                 position_id = position["position"]["dealId"]
                 direction = position["position"]["direction"]
 
+                entry_price = position["position"]["level"]
+                last_close = data["close"].iloc[-1]
+
+                min_profit_percent = self.config.get("min_profit_percent", 0.1)
+
+                # Рассчитываем текущую "бумажную" прибыль в процентах
+                if direction == "BUY":
+                    unrealized_profit = (last_close - entry_price) / entry_price * 100
+                else:
+                    unrealized_profit = (entry_price - last_close) / entry_price * 100
+
+                # Если позиция ещё ни разу не достигла минимального профита — не проверяем EarlyExit
+                if unrealized_profit < min_profit_percent:
+                    self.logger.debug(f"Skipping early exit for {position_id}: unrealized profit {unrealized_profit:.2f}% < threshold {min_profit_percent}%")
+                    continue
+
                 # Проверка сигналов смены тренда
                 if self._should_exit(data, direction):
                     await self.order_manager.close_position(position_id)
@@ -84,7 +100,9 @@ class EarlyExit:
             delta = data["close"].diff()
             gain = delta.where(delta > 0, 0).rolling(self.config["rsi_period"]).mean()
             loss = -delta.where(delta < 0, 0).rolling(self.config["rsi_period"]).mean()
-            rs = gain / loss if loss != 0 else float("inf")
+            loss = loss.replace(0, 1e-10)  # избегаем деления на 0
+
+            rs = gain / loss
             rsi = 100 - (100 / (1 + rs))
             return rsi.iloc[-1]
         except Exception as e:

@@ -49,6 +49,13 @@ class Backtester:
                 current_price = data.iloc[i]["close"]
                 current_time = data.iloc[i]["timestamp"]
 
+                if len(window) < max(
+                    self.sl_tp_calculator.config["atr_period"],
+                    self.sl_tp_calculator.config["sr_window"]
+                ):
+                    print(f"Window too small: {len(window)}")
+                    continue
+
                 # Подмена data_feed для стратегий
                 self.smc_strategy.data_feed.get_data = lambda *args, **kwargs: window
                 self.ict_strategy.data_feed.get_data = lambda *args, **kwargs: window
@@ -62,7 +69,7 @@ class Backtester:
                 await self._process_positions(current_price, current_time, window)
 
                 # Проверка досрочного выхода
-                await self.early_exit.check_positions(self.smc_strategy.symbol, self.smc_strategy.timeframe)
+                # await self.early_exit.check_positions(self.smc_strategy.symbol, self.smc_strategy.timeframe)
 
                 # Обновление баланса
                 balance = self.risk_manager.account_balance
@@ -134,6 +141,8 @@ class Backtester:
             profit = 0
             close_position = False
 
+            # self.logger.info(f"Profit error: stop_loss:{pos['stop_loss']} take_profit:{pos['take_profit']} entry_price:{pos['entry_price']} size:{pos['size']}")
+
             # Проверка SL/TP
             if pos["direction"] == "BUY":
                 if current_price <= pos["stop_loss"]:
@@ -152,8 +161,7 @@ class Backtester:
 
             # Учёт комиссий
             if close_position:
-                commission = pos["size"] * self.config["commission"]
-                profit -= commission
+                profit *= 1 - self.config["commission"]
                 self.trades.append({
                     "symbol": pos["symbol"],
                     "direction": pos["direction"],
@@ -166,6 +174,10 @@ class Backtester:
                 })
                 self.risk_manager.update_balance(self.risk_manager.account_balance + profit)
                 self.open_positions.remove(pos)
+
+                if profit == 0.0:
+                    self.logger.info(f"Profit error: stop_loss:{pos['stop_loss']} take_profit:{pos['take_profit']} entry_price:{pos['entry_price']} size:{pos['size']}")
+
                 self.logger.info(f"Position closed: {pos['deal_id']}, Profit: {profit}")
 
     async def _close_all_positions(self, current_price: float) -> None:
@@ -185,6 +197,7 @@ class Backtester:
                 "open_time": pos["open_time"],
                 "close_time": datetime.now()
             })
+            print(f"account_balance:  {self.risk_manager.account_balance + profit} | profit: {self.risk_manager.account_balance + profit}")
             self.risk_manager.update_balance(self.risk_manager.account_balance + profit)
             self.open_positions.remove(pos)
             self.logger.info(f"Position closed at end: {pos['deal_id']}, Profit: {profit}")
@@ -214,7 +227,7 @@ class Backtester:
                 "profit_factor": sum(t["profit"] for t in self.trades if t["profit"] > 0) / \
                                  abs(sum(t["profit"] for t in self.trades if t["profit"] < 0)) if any(t["profit"] < 0 for t in self.trades) else float("inf")
             }
-            pd.DataFrame([metrics]).to_csv("backtest_metrics.csv")
+            pd.DataFrame([metrics]).to_csv("backtest/backtest_metrics.csv")
             self.logger.info(f"Metrics: {metrics}")
         except Exception as e:
             self.logger.error(f"Error calculating metrics: {e}")
@@ -229,7 +242,7 @@ class Backtester:
             plt.ylabel("Balance")
             plt.legend()
             plt.grid(True)
-            plt.savefig("equity_curve.png")
+            plt.savefig("backtest/equity_curve.png")
             plt.close()
             self.logger.info("Equity curve saved to equity_curve.png")
         except Exception as e:
@@ -238,8 +251,8 @@ class Backtester:
     def _save_results(self) -> None:
         """Сохранение результатов бэктестинга."""
         try:
-            pd.Series(self.equity).to_csv("backtest_equity.csv")
-            pd.DataFrame(self.trades).to_csv("backtest_trades.csv")
+            pd.Series(self.equity).to_csv("backtest/backtest_equity.csv")
+            pd.DataFrame(self.trades).to_csv("backtest/backtest_trades.csv")
             self.logger.info("Backtest results saved to backtest_equity.csv and backtest_trades.csv")
         except Exception as e:
             self.logger.error(f"Failed to save backtest results: {e}")
